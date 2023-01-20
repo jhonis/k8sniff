@@ -1,4 +1,4 @@
-<img src="/logo/logo.png" alt="K8SNIff" width="50%"/>
+<img src="/logo/logo.png" alt="K8SNIff"/>
 
 K8SNIff - tcp ingress controller with SNI support
 =====
@@ -25,29 +25,40 @@ The following config will K8SNIff listen on port `8443` and listen on Ingress re
 The example ingress connect any requests to `foo` to service `foo` with port `443` and any requests to `bar` to service `bar` with port `443`. If nothing matches this, it will send the traffic to the default backend with the service `bar` on port `443`.
 
 ```yaml
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: tcp
   annotations:
     kubernetes.io/ingress.class: k8sniff
 spec:
-  backend:
-    serviceName: bar
-    servicePort: 443
+  defaultBackend:
+    service:
+      name: bar
+      port:
+        number: 443
   rules:
-  - host: foo
-    http:
-      paths:
-      - backend:
-          serviceName: foo
-          servicePort: 443
-  - host: bar
-    http:
-      paths:
-      - backend:
-          serviceName: bar
-          servicePort: 443
+    - host: foo
+      http:
+        paths:
+          - pathType: ImplementationSpecific
+            path: "/"
+            backend:
+              service:
+                name: foo
+                port:
+                  number: 443
+    - host: bar
+      http:
+        paths:
+          - pathType: ImplementationSpecific
+            path: "/"
+            backend:
+              service:
+                name: bar
+                port:
+                  number: 443
+
 ```
 
 The requested domain name are interpreted as regular expressions. Each server and name will be checked in the order they appear in the file, stopping with the first match. If there is no match, then the request is sent to the first server with default `backend` set.

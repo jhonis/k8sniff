@@ -1,23 +1,33 @@
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: tcp
   annotations:
     kubernetes.io/ingress.class: k8sniff
 spec:
-  backend:
-    serviceName: bar
-    servicePort: 443
+  defaultBackend:
+    service:
+      name: bar
+      port:
+        number: 443
   rules:
-  - host: foo
-    http:
-      paths:
-      - backend:
-          serviceName: foo
-          servicePort: 443
-  - host: bar
-    http:
-      paths:
-      - backend:
-          serviceName: bar
-          servicePort: 443
+    - host: foo
+      http:
+        paths:
+          - pathType: ImplementationSpecific
+            path: "/"
+            backend:
+              service:
+                name: foo
+                port:
+                  number: 443
+    - host: bar
+      http:
+        paths:
+          - pathType: ImplementationSpecific
+            path: "/"
+            backend:
+              service:
+                name: bar
+                port:
+                  number: 443

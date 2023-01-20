@@ -24,7 +24,7 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/kubermatic/k8sniff/metrics"
+	"k8sniff/metrics"
 )
 
 func main() {

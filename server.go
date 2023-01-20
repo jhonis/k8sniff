@@ -21,6 +21,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -32,8 +33,8 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/kubermatic/k8sniff/metrics"
-	"github.com/kubermatic/k8sniff/parser"
+	"k8sniff/metrics"
+	"k8sniff/parser"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
@@ -85,7 +86,7 @@ func (p *Proxy) Get(host string) *Server {
 }
 
 func (p *Proxy) Update(c *Config) error {
-	servers := []ServerAndRegexp{}
+	var servers []ServerAndRegexp
 	currentServers := c.Servers
 	for i, server := range currentServers {
 		for _, hostname := range server.Names {
@@ -154,7 +155,7 @@ func (c *Config) UpdateServers() error {
 		}, nil
 	}
 
-	servers := []Server{}
+	var servers []Server
 	ingressList := c.ingressStore.List()
 	for _, i := range ingressList {
 		i := i.(*v1beta1.Ingress)
@@ -277,10 +278,10 @@ func (c *Config) Serve(stopCh chan struct{}) error {
 		c.ingressStore, c.ingressController = cache.NewInformer(
 			&cache.ListWatch{
 				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					return c.Kubernetes.Client.ExtensionsV1beta1().Ingresses("").List(options)
+					return c.Kubernetes.Client.NetworkingV1().Ingresses("").List(context.TODO(), options)
 				},
 				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					return c.Kubernetes.Client.ExtensionsV1beta1().Ingresses("").Watch(options)
+					return c.Kubernetes.Client.NetworkingV1().Ingresses("").Watch(context.TODO(), options)
 				},
 			},
 			&v1beta1.Ingress{},
@@ -301,10 +302,10 @@ func (c *Config) Serve(stopCh chan struct{}) error {
 		c.serviceStore, c.serviceController = cache.NewInformer(
 			&cache.ListWatch{
 				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					return c.Kubernetes.Client.Services("").List(options)
+					return c.Kubernetes.Client.CoreV1().Services("").List(context.TODO(), options)
 				},
 				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					return c.Kubernetes.Client.Services("").Watch(options)
+					return c.Kubernetes.Client.CoreV1().Services("").Watch(context.TODO(), options)
 				},
 			},
 			&v1.Service{},
