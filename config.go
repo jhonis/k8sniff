@@ -89,7 +89,7 @@ type Server struct {
 	Regexp  bool
 	Host    string
 	Names   []string
-	Port    int
+	Port    int32
 }
 
 // Valid returns an error if the metrics config is invalid

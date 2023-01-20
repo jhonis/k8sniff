@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	v12 "k8s.io/api/networking/v1"
 	"math/rand"
 	"net"
 	"reflect"
@@ -37,10 +38,8 @@ import (
 	"k8sniff/parser"
 
 	"k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -126,28 +125,28 @@ func (c *Config) UpdateServers() error {
 		class = "k8sniff"
 	}
 
-	serverForBackend := func(ing *v1beta1.Ingress, backend *v1beta1.IngressBackend) (*Server, error) {
-		obj, found, err := c.serviceStore.GetByKey(fmt.Sprintf("%s/%s", ing.Namespace, backend.ServiceName))
+	serverForBackend := func(ing *v12.Ingress, backend *v12.IngressBackend) (*Server, error) {
+		obj, found, err := c.serviceStore.GetByKey(fmt.Sprintf("%s/%s", ing.Namespace, backend.Service.Name))
 		if err != nil {
 			return nil, err
 		}
 		if !found {
-			return nil, fmt.Errorf("service %s/%s not found", ing.Namespace, backend.ServiceName)
+			return nil, fmt.Errorf("service %s/%s not found", ing.Namespace, backend.Service.Name)
 		}
 		svc := obj.(*v1.Service)
-		var port int
-		if backend.ServicePort.Type == intstr.String {
+		var port int32
+		if backend.Service.Port.Name != "" {
 			for _, p := range svc.Spec.Ports {
-				if p.Name == backend.ServicePort.StrVal {
-					port = int(p.Port)
+				if p.Name == backend.Service.Port.Name {
+					port = p.Port
 					break
 				}
 			}
 			if port == 0 {
-				return nil, fmt.Errorf("port %s of service %s/%s not found", backend.ServicePort.StrVal, svc.Namespace, svc.Name)
+				return nil, fmt.Errorf("port %s of service %s/%s not found", backend.Service.Port.Name, svc.Namespace, svc.Name)
 			}
-		} else {
-			port = int(backend.ServicePort.IntVal)
+		} else if backend.Service.Port.Number != 0 {
+			port = backend.Service.Port.Number
 		}
 		return &Server{
 			Host: svc.Spec.ClusterIP,
@@ -158,15 +157,15 @@ func (c *Config) UpdateServers() error {
 	var servers []Server
 	ingressList := c.ingressStore.List()
 	for _, i := range ingressList {
-		i := i.(*v1beta1.Ingress)
+		i := i.(*v12.Ingress)
 		name := fmt.Sprintf("%s/%s", i.Namespace, i.Name)
 		if i.Annotations[ingressClassKey] != class {
 			glog.V(6).Infof("Skipping ingress %s due to missing annotation. Expected %s=%s Got %s=%s", name, ingressClassKey, class, ingressClassKey, i.Annotations[ingressClassKey])
 			continue
 		}
 
-		if i.Spec.Backend != nil {
-			s, err := serverForBackend(i, i.Spec.Backend)
+		if i.Spec.DefaultBackend != nil {
+			s, err := serverForBackend(i, i.Spec.DefaultBackend)
 			if err != nil {
 				metrics.IncErrors(metrics.Error)
 				glog.V(0).Infof("Ingress %s error with default backend, skipping: %v", name, err)
@@ -284,7 +283,7 @@ func (c *Config) Serve(stopCh chan struct{}) error {
 					return c.Kubernetes.Client.NetworkingV1().Ingresses("").Watch(context.TODO(), options)
 				},
 			},
-			&v1beta1.Ingress{},
+			&v12.Ingress{},
 			30*time.Minute,
 			cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) {
